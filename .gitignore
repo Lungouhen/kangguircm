@@ -1,0 +1,4 @@
+Since the only added files are `.gitignore` and `PROJECT_PLAN.md` (both source/config files), and there are no build artifacts, dependencies, or temporary files in the changes, the output should be empty.
+
+```(empty)
+```
