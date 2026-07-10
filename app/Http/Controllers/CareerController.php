@@ -6,9 +6,12 @@ namespace App\Http\Controllers;
 
 use App\Models\JobListing;
 use App\Models\JobApplication;
+use App\Mail\JobApplicationReceived;
+use App\Mail\JobApplicationConfirmation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Mail;
 
 class CareerController extends Controller
 {
