@@ -24,10 +24,17 @@ class JobApplication extends Model
         'message',
         'status',
         'notes',
+        'parsed_skills',
+        'parsed_experience',
+        'match_score',
+        'is_auto_rejected',
     ];
 
     protected $casts = [
         'job_id' => 'integer',
+        'parsed_skills' => 'array',
+        'match_score' => 'decimal:2',
+        'is_auto_rejected' => 'boolean',
     ];
 
     public function getActivitylogOptions(): LogOptions

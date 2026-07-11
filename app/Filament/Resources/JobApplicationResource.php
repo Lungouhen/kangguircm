@@ -30,42 +30,83 @@ class JobApplicationResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('job_id')
-                    ->relationship('job', 'title')
-                    ->required(),
-                Forms\Components\TextInput::make('name')
-                    ->required()
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('email')
-                    ->email()
-                    ->required()
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('phone')
-                    ->tel()
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('resume_path')
-                    ->required()
-                    ->maxLength(255)
-                    ->helperText('Path to uploaded resume file'),
-                Forms\Components\TextInput::make('cover_letter_path')
-                    ->maxLength(255)
-                    ->helperText('Path to uploaded cover letter file'),
-                Forms\Components\Textarea::make('message')
-                    ->columnSpanFull(),
-                Forms\Components\Select::make('status')
-                    ->options([
-                        'pending' => 'Pending Review',
-                        'shortlisted' => 'Shortlisted',
-                        'interview' => 'Interview Scheduled',
-                        'offered' => 'Offer Sent',
-                        'hired' => 'Hired',
-                        'rejected' => 'Rejected',
-                    ])
-                    ->default('pending')
-                    ->required(),
-                Forms\Components\Textarea::make('notes')
-                    ->columnSpanFull()
-                    ->helperText('Internal notes about this application'),
+                Forms\Components\Section::make('Candidate Information')
+                    ->schema([
+                        Forms\Components\Select::make('job_id')
+                            ->relationship('job', 'title')
+                            ->required(),
+                        Forms\Components\TextInput::make('name')
+                            ->required()
+                            ->maxLength(255),
+                        Forms\Components\TextInput::make('email')
+                            ->email()
+                            ->required()
+                            ->maxLength(255),
+                        Forms\Components\TextInput::make('phone')
+                            ->tel()
+                            ->maxLength(255),
+                    ])->columns(2),
+                
+                Forms\Components\Section::make('Application Details')
+                    ->schema([
+                        Forms\Components\FileUpload::make('resume_path')
+                            ->label('Resume')
+                            ->directory('resumes')
+                            ->acceptedFileTypes(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
+                            ->maxSize(2048)
+                            ->required()
+                            ->helperText('PDF or DOCX, max 2MB'),
+                        Forms\Components\FileUpload::make('cover_letter_path')
+                            ->label('Cover Letter')
+                            ->directory('resumes')
+                            ->acceptedFileTypes(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
+                            ->maxSize(2048)
+                            ->helperText('PDF or DOCX, max 2MB'),
+                        Forms\Components\Textarea::make('message')
+                            ->columnSpanFull()
+                            ->rows(4),
+                    ])->columns(1),
+                
+                Forms\Components\Section::make('AI Analysis (Auto-Parsed)')
+                    ->schema([
+                        Forms\Components\TagsInput::make('parsed_skills')
+                            ->label('Detected Skills')
+                            ->disabled()
+                            ->helperText('Automatically extracted from resume'),
+                        Forms\Components\Textarea::make('parsed_experience')
+                            ->label('Experience Summary')
+                            ->disabled()
+                            ->rows(3),
+                        Forms\Components\TextInput::make('match_score')
+                            ->label('Job Match Score')
+                            ->disabled()
+                            ->suffix('%')
+                            ->helperText('AI-calculated match percentage'),
+                        Forms\Components\Toggle::make('is_auto_rejected')
+                            ->label('Auto-Rejected')
+                            ->disabled()
+                            ->helperText('True if score is below threshold'),
+                    ])->columns(2)->visible(fn ($record) => $record && $record->parsed_skills),
+                
+                Forms\Components\Section::make('Review & Status')
+                    ->schema([
+                        Forms\Components\Select::make('status')
+                            ->options([
+                                'pending' => 'Pending Review',
+                                'shortlisted' => 'Shortlisted',
+                                'interview' => 'Interview Scheduled',
+                                'offered' => 'Offer Sent',
+                                'hired' => 'Hired',
+                                'rejected' => 'Rejected',
+                            ])
+                            ->default('pending')
+                            ->required()
+                            ->live(),
+                        Forms\Components\Textarea::make('notes')
+                            ->columnSpanFull()
+                            ->rows(3)
+                            ->helperText('Internal notes about this application'),
+                    ])->columns(1),
             ]);
     }
 
@@ -91,6 +132,23 @@ class JobApplicationResource extends Resource
                         'success' => 'hired',
                         'danger' => 'rejected',
                     ]),
+                Tables\Columns\IconColumn::make('is_auto_rejected')
+                    ->label('Auto-Reject')
+                    ->boolean()
+                    ->colors([
+                        'danger' => true,
+                    ])
+                    ->tooltip('Auto-rejected by AI'),
+                Tables\Columns\TextColumn::make('match_score')
+                    ->label('Match %')
+                    ->numeric(2)
+                    ->suffix('%')
+                    ->color(fn (string $state): string => match (true) {
+                        $state >= 80 => 'success',
+                        $state >= 60 => 'warning',
+                        default => 'danger',
+                    })
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

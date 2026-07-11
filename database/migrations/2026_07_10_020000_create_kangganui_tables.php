@@ -110,6 +110,10 @@ return new class extends Migration
             $table->text('message')->nullable();
             $table->string('status')->default('pending'); // pending, reviewed, interviewed, offered, rejected
             $table->text('notes')->nullable();
+            $table->json('parsed_skills')->nullable();
+            $table->text('parsed_experience')->nullable();
+            $table->decimal('match_score', 5, 2)->nullable();
+            $table->boolean('is_auto_rejected')->default(false);
             $table->timestamps();
         });
 
