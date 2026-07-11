@@ -44,6 +44,17 @@ class BlockResource extends Resource
                             ->required()
                             ->native(false)
                             ->reactive(),
+                        Forms\Components\Select::make('layout_variant')
+                            ->options([
+                                'standard' => 'Standard Layout',
+                                'alternating' => 'Alternating (Image/Text)',
+                                'grid-3' => 'Grid 3 Columns',
+                                'grid-4' => 'Grid 4 Columns',
+                                'full-width' => 'Full Width',
+                            ])
+                            ->default('standard')
+                            ->native(false)
+                            ->columnSpanFull(),
                         Forms\Components\Toggle::make('is_active')
                             ->default(true),
                         Forms\Components\TextInput::make('order')

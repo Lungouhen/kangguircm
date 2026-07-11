@@ -58,6 +58,14 @@ class MenuItemResource extends Resource
                             ->relationship('parent', 'title')
                             ->label('Parent Item (for dropdowns)')
                             ->native(false),
+                        Forms\Components\Toggle::make('is_mega_menu')
+                            ->label('Enable Mega Menu')
+                            ->helperText('Show multi-column content on hover'),
+                        Forms\Components\RichEditor::make('mega_menu_content')
+                            ->columnSpanFull()
+                            ->label('Mega Menu Content')
+                            ->visible(fn ($get) => $get('is_mega_menu') === true)
+                            ->helperText('Add headings, links, and descriptions for mega menu panel'),
                         Forms\Components\TextInput::make('icon')
                             ->label('Icon Class (e.g., heroicon-o-home)'),
                         Forms\Components\Toggle::make('open_in_new_tab')

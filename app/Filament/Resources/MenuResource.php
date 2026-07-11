@@ -39,6 +39,14 @@ class MenuResource extends Resource
                             ])
                             ->required()
                             ->default('header'),
+                        Forms\Components\Select::make('menu_type')
+                            ->options([
+                                'standard' => 'Standard Menu',
+                                'mega-menu' => 'Mega Menu',
+                            ])
+                            ->default('standard')
+                            ->native(false)
+                            ->columnSpanFull(),
                         Forms\Components\Toggle::make('is_active')
                             ->label('Active')
                             ->default(true),

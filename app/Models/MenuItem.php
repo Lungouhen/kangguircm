@@ -14,6 +14,8 @@ class MenuItem extends Model
         'parent_id',
         'title',
         'url',
+        'is_mega_menu',
+        'mega_menu_content',
         'route',
         'route_parameters',
         'target',
@@ -25,6 +27,7 @@ class MenuItem extends Model
     protected $casts = [
         'route_parameters' => 'array',
         'is_active' => 'boolean',
+        'is_mega_menu' => 'boolean',
     ];
 
     public function menu()

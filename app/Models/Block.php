@@ -13,6 +13,7 @@ class Block extends Model
         'title',
         'name',
         'type',
+        'layout_variant',
         'slug',
         'description',
         'is_active',
