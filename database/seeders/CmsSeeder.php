@@ -35,10 +35,11 @@ class CmsSeeder extends Seeder
             ],
         ]);
 
-        // Create main navigation menu
+        // Create main navigation menu with mega-menu support
         $mainMenu = Menu::create([
             'name' => 'Main Navigation',
-            'location' => 'main',
+            'location' => 'header',
+            'menu_type' => 'mega-menu',
             'is_active' => true,
         ]);
 
@@ -49,10 +50,14 @@ class CmsSeeder extends Seeder
                 'title' => 'Services',
                 'url' => '/services',
                 'order' => 3,
+                'is_mega_menu' => true,
+                'mega_menu_content' => '<div class="grid grid-cols-3 gap-6 p-6"><div><h4 class="font-bold mb-2">Our Services</h4><p class="text-sm text-gray-600">Comprehensive RCM solutions</p></div><div><ul class="space-y-2"><li><a href="/services#claims" class="hover:text-primary">Claim Processing</a></li><li><a href="/services#denials" class="hover:text-primary">Denial Management</a></li><li><a href="/services#billing" class="hover:text-primary">Medical Billing</a></li></ul></div><div><ul class="space-y-2"><li><a href="/services#coding" class="hover:text-primary">Medical Coding</a></li><li><a href="/services#compliance" class="hover:text-primary">Compliance</a></li><li><a href="/services#analytics" class="hover:text-primary">Analytics</a></li></ul></div></div>',
                 'children' => [
                     ['title' => 'All Services', 'url' => '/services', 'order' => 1],
                     ['title' => 'Claim Processing', 'url' => '/services#claims', 'order' => 2],
                     ['title' => 'Denial Management', 'url' => '/services#denials', 'order' => 3],
+                    ['title' => 'Medical Billing', 'url' => '/services#billing', 'order' => 4],
+                    ['title' => 'Medical Coding', 'url' => '/services#coding', 'order' => 5],
                 ]
             ],
             ['title' => 'Blog', 'url' => '/blog', 'order' => 4],
@@ -62,9 +67,15 @@ class CmsSeeder extends Seeder
 
         foreach ($menuItems as $itemData) {
             $children = $itemData['children'] ?? [];
-            unset($itemData['children']);
+            $isMegaMenu = $itemData['is_mega_menu'] ?? false;
+            $megaMenuContent = $itemData['mega_menu_content'] ?? null;
+            unset($itemData['children'], $itemData['is_mega_menu'], $itemData['mega_menu_content']);
             
-            $parent = MenuItem::create($itemData + ['menu_id' => $mainMenu->id]);
+            $parent = MenuItem::create($itemData + [
+                'menu_id' => $mainMenu->id,
+                'is_mega_menu' => $isMegaMenu,
+                'mega_menu_content' => $megaMenuContent,
+            ]);
             
             foreach ($children as $childData) {
                 MenuItem::create($childData + ['menu_id' => $mainMenu->id, 'parent_id' => $parent->id]);
@@ -73,9 +84,11 @@ class CmsSeeder extends Seeder
 
         // Create sample blocks for home page
         $heroBlock = Block::create([
-            'title' => 'Home Hero Section',
+            'name' => 'Home Hero Section',
             'type' => 'hero',
+            'layout_variant' => 'standard',
             'slug' => 'home-hero',
+            'description' => 'Main hero section for homepage',
             'is_active' => true,
             'content' => json_encode([
                 'title' => 'Optimize Your Revenue Cycle with Confidence',
@@ -88,13 +101,14 @@ class CmsSeeder extends Seeder
             'background_type' => 'gradient',
             'background_value' => 'from-blue-600 to-blue-800',
             'padding' => 'py-24 md:py-32',
-            'order' => 1,
         ]);
 
         $statsBlock = Block::create([
-            'title' => 'Key Statistics',
+            'name' => 'Key Statistics',
             'type' => 'stats',
+            'layout_variant' => 'grid-4',
             'slug' => 'home-stats',
+            'description' => 'Statistics counter section',
             'is_active' => true,
             'json_data' => json_encode([
                 'stats' => [
@@ -105,13 +119,14 @@ class CmsSeeder extends Seeder
                 ]
             ]),
             'padding' => 'py-16',
-            'order' => 2,
         ]);
 
         $featuresBlock = Block::create([
-            'title' => 'Why Choose Us',
+            'name' => 'Why Choose Us',
             'type' => 'features',
+            'layout_variant' => 'alternating',
             'slug' => 'home-features',
+            'description' => 'Features grid with alternating layout',
             'is_active' => true,
             'json_data' => json_encode([
                 'items' => [
@@ -138,13 +153,14 @@ class CmsSeeder extends Seeder
                 ]
             ]),
             'padding' => 'py-20',
-            'order' => 3,
         ]);
 
         $ctaBlock = Block::create([
-            'title' => 'Final CTA',
+            'name' => 'Final CTA',
             'type' => 'cta',
+            'layout_variant' => 'full-width',
             'slug' => 'home-cta',
+            'description' => 'Call-to-action section',
             'is_active' => true,
             'content' => json_encode([
                 'title' => 'Ready to Transform Your Revenue Cycle?',
@@ -155,7 +171,6 @@ class CmsSeeder extends Seeder
             'background_type' => 'gradient',
             'background_value' => 'from-blue-600 to-blue-800',
             'padding' => 'py-20',
-            'order' => 4,
         ]);
 
         // Assign blocks to home page

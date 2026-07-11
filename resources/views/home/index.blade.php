@@ -5,7 +5,7 @@
 
 @php
     $theme = \App\Models\Theme::active();
-    $blocks = \App\Models\Block::where('page_type', 'home')->where('active', true)->orderBy('sort_order')->get();
+    $blocks = \App\Models\Block::forPage('home');
 @endphp
 
 @section('content')
