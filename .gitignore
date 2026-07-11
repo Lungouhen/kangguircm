@@ -1,21 +1,48 @@
 ```
-# Build artifacts
-public/build/
-storage/app/private/
-storage/app/public/
-storage/framework/
-storage/logs/
-
-# Environment
-.env*
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+*.o
+*.obj
+dist/
+build/
+*.class
+*.exe
+*.dll
+*.so
+*.a
+*.out
 
 # Dependencies
+vendor/
 node_modules/
+.env
+.env.local
+.env.*
 
-# Logs
+# Logs and temp files
 *.log
+*.tmp
+*.swp
+*.swo
 
-# OS generated files
+# Editors
+.vscode/
+.idea/
+
+# System files
 .DS_Store
 Thumbs.db
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Laravel specific
+storage/
+bootstrap/cache/
+public/storage
+.npm
+.yarn
 ```

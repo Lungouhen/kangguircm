@@ -17,7 +17,11 @@ class NewsletterResource extends Resource
 {
     protected static ?string $model = Newsletter::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-mail';
+
+    protected static ?string $navigationGroup = 'CRM';
+
+    protected static ?int $navigationSort = 3;
 
     public static function form(Form $form): Form
     {

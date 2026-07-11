@@ -8,11 +8,16 @@
     <title>@yield('title', config('app.name', 'Kanggui RCM'))</title>
     <meta name="description" content="@yield('meta_description', 'Professional Revenue Cycle Management Solutions')">
 
-    <!-- Google Tag Manager -->
     @php
         $gtmId = \App\Models\Setting::get('seo.google_tag_manager_id');
         $gaId = \App\Models\Setting::get('seo.google_analytics_id');
+        $theme = \App\Models\Theme::active();
     @endphp
+
+    @if($theme?->favicon)
+        <link rel="icon" href="{{ asset('storage/' . $theme->favicon) }}">
+    @endif
+
     @if($gtmId)
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
     new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
@@ -20,7 +25,6 @@
     'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
     })(window,document,'script','dataLayer','{{ $gtmId }}');</script>
     @endif
-    <!-- End Google Tag Manager -->
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
@@ -29,9 +33,17 @@
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
+    @if($theme?->custom_css)
+        <style>{!! $theme->custom_css !!}</style>
+    @endif
+
     @stack('styles')
 </head>
-<body class="font-sans antialiased bg-gray-50">
+<body class="font-sans antialiased bg-gray-50" 
+      @if($theme?->colors) 
+          style="--color-primary: {{ $theme->colors['primary'] ?? '#2563EB' }};"
+      @endif
+>
     <!-- Google Tag Manager (noscript) -->
     @if($gtmId)
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ $gtmId }}"
@@ -59,6 +71,10 @@
       gtag('js', new Date());
       gtag('config', '{{ $gaId }}');
     </script>
+    @endif
+
+    @if($theme?->custom_js)
+        <script>{!! $theme->custom_js !!}</script>
     @endif
 
     @stack('scripts')

@@ -19,8 +19,8 @@ class ManageSettings extends Page implements HasForms
     use InteractsWithForms;
 
     protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
-    protected static ?string $navigationGroup = 'System';
-    protected static ?int $navigationSort = 10;
+    protected static ?string $navigationGroup = 'Settings';
+    protected static ?int $navigationSort = 1;
     protected static string $view = 'filament.pages.manage-settings';
 
     public ?array $data = [];
