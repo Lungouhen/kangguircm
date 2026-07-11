@@ -41,6 +41,7 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('location')->index(); // header, footer, sidebar
+            $table->string('menu_type')->default('standard'); // standard, mega-menu
             $table->boolean('is_active')->default(true);
             $table->integer('order')->default(0);
             $table->timestamps();
@@ -58,6 +59,8 @@ return new class extends Migration
             $table->string('icon')->nullable();
             $table->integer('order')->default(0);
             $table->boolean('is_active')->default(true);
+            $table->boolean('is_mega_menu')->default(false);
+            $table->text('mega_menu_content')->nullable(); // HTML/Rich text for mega menu content
             $table->timestamps();
         });
         
@@ -73,6 +76,7 @@ return new class extends Migration
             $table->string('background_type')->default('none'); // none, color, gradient, image
             $table->string('background_value')->nullable();
             $table->string('padding')->default('py-16'); // Tailwind padding class
+            $table->string('layout_variant')->default('standard'); // standard, alternating, grid-3, grid-4, full-width
             $table->timestamps();
         });
         

@@ -10,7 +10,6 @@ class Block extends Model
     use HasFactory;
 
     protected $fillable = [
-        'title',
         'name',
         'type',
         'layout_variant',
@@ -18,17 +17,14 @@ class Block extends Model
         'description',
         'is_active',
         'content',
-        'json_data',
         'styles',
         'background_type',
         'background_value',
         'padding',
-        'order',
     ];
 
     protected $casts = [
         'content' => 'array',
-        'json_data' => 'array',
         'styles' => 'array',
         'is_active' => 'boolean',
     ];
@@ -36,11 +32,6 @@ class Block extends Model
     public function pageAssignments()
     {
         return $this->hasMany(PageBlock::class);
-    }
-
-    public static function getByType(string $type)
-    {
-        return static::where('type', $type)->where('is_active', true)->orderBy('order')->get();
     }
 
     public static function forPage(string $pageType, ?string $identifier = null)
@@ -57,13 +48,6 @@ class Block extends Model
 
     public function getContentAttribute($value)
     {
-        $content = json_decode($value, true);
-        if ($content) {
-            return $content;
-        }
-        
-        // Merge with json_data for backward compatibility
-        $jsonData = json_decode($this->json_data ?? '{}', true);
-        return array_merge($jsonData, is_array($content) ? $content : []);
+        return json_decode($value, true) ?? [];
     }
 }
