@@ -14,6 +14,7 @@
             <x-dynamic-block :block="$block" />
         @endforeach
     @else
+        {{-- Fallback to static content if no blocks assigned --}}
         <!-- Default Hero Section -->
         <section class="relative bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] text-white py-24 md:py-32 overflow-hidden">
             <div class="absolute inset-0 opacity-10">
