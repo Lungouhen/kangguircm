@@ -1,0 +1,18 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+
+class AboutController extends Controller
+{
+    /**
+     * Display the about page.
+     */
+    public function index()
+    {
+        return view('about.index');
+    }
+}
