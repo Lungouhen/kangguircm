@@ -28,7 +28,10 @@
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700|instrument-serif:400,700&display=swap" rel="stylesheet" />
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -40,10 +43,16 @@
     @stack('styles')
 </head>
 <body class="font-sans antialiased bg-gray-50" 
-      @if($theme?->colors) 
-          style="--color-primary: {{ $theme->colors['primary'] ?? '#2563EB' }};"
-      @endif
->
+      style="--font-heading: '{{ ($theme?->typography['heading'] ?? 'Instrument Serif') }}, serif'; --font-body: '{{ ($theme?->typography['body'] ?? 'Instrument Sans') }}, sans-serif';">
+    @if($theme?->colors)
+    <style>
+        :root {
+            --color-primary: {{ $theme->colors['primary'] ?? '#2563EB' }};
+            --color-secondary: {{ $theme->colors['secondary'] ?? '#1E40AF' }};
+            --color-accent: {{ $theme->colors['accent'] ?? '#F59E0B' }};
+        }
+    </style>
+    @endif
     <!-- Google Tag Manager (noscript) -->
     @if($gtmId)
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ $gtmId }}"
