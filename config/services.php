@@ -35,4 +35,18 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Google Tag Manager
+    |--------------------------------------------------------------------------
+    |
+    | Configure your Google Tag Manager container ID here.
+    | Set GTM_ID in your .env file (e.g., GTM-XXXXXX).
+    |
+    */
+    'gtm' => [
+        'id' => env('GTM_ID', null),
+        'enabled' => env('GTM_ENABLED', true),
+    ],
+
 ];
