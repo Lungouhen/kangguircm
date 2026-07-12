@@ -108,7 +108,7 @@ jobs:
           php artisan storage:link --quiet || true
 
       # ──────────────────────────────────────────────────────────────
-      # 8. Migrate & seed (includes admin user + demo content)
+      # 8. Migrate & seed (creates admin user + demo content)
       # ──────────────────────────────────────────────────────────────
       - name: Run migrations and seed database
         run: php artisan migrate --force --seed
@@ -128,12 +128,69 @@ jobs:
             fi
             sleep 1
           done
-          # Final check
           curl -sf http://127.0.0.1:8000 > /dev/null || \
             { echo "ERROR: Server did not start"; cat /tmp/laravel-serve.log; exit 1; }
 
       # ──────────────────────────────────────────────────────────────
-      # 10. Smoke tests
+      # 10a. Write PHP helper that creates an authenticated admin
+      #      session directly in the SQLite DB.
+      #
+      #      Filament 3 uses Livewire for its login form, so a plain
+      #      curl form-POST to /admin/login cannot authenticate.
+      #      The helper writes a sessions row with the admin user's
+      #      auth identity and returns the AES-256-CBC encrypted
+      #      cookie value (same format as EncryptCookies middleware),
+      #      which curl can then send as the laravel_session cookie.
+      # ──────────────────────────────────────────────────────────────
+      - name: Write admin-session PHP helper
+        run: |
+          cat > /tmp/create_admin_session.php << 'PHPEOF'
+          <?php
+          define('LARAVEL_START', microtime(true));
+          chdir(getenv('GITHUB_WORKSPACE'));
+          require 'vendor/autoload.php';
+
+          $app = require_once 'bootstrap/app.php';
+          $app->bootstrapWith([
+              Illuminate\Foundation\Bootstrap\LoadEnvironmentVariables::class,
+              Illuminate\Foundation\Bootstrap\LoadConfiguration::class,
+              Illuminate\Foundation\Bootstrap\RegisterFacades::class,
+              Illuminate\Foundation\Bootstrap\RegisterProviders::class,
+              Illuminate\Foundation\Bootstrap\BootProviders::class,
+          ]);
+
+          $user = App\Models\User::where('email', 'admin@kangganui-rcm.com')->first();
+          if (!$user) {
+              fwrite(STDERR, "Admin user not found\n");
+              exit(1);
+          }
+
+          // Build session payload matching Laravel SessionGuard's format
+          $guardKey  = 'login_web_' . sha1(Illuminate\Auth\SessionGuard::class);
+          $sessionId = Illuminate\Support\Str::random(40);
+          $payload   = [
+              '_token'    => Illuminate\Support\Str::random(40),
+              $guardKey   => $user->getAuthIdentifier(),
+              '_previous' => ['url' => 'http://127.0.0.1:8000/admin'],
+              '_flash'    => ['old' => [], 'new' => []],
+          ];
+
+          // Write the row into the sessions table (DATABASE driver)
+          Illuminate\Support\Facades\DB::table('sessions')->insert([
+              'id'            => $sessionId,
+              'user_id'       => $user->id,
+              'ip_address'    => '127.0.0.1',
+              'user_agent'    => 'SmokeTest/1.0',
+              'payload'       => base64_encode(serialize($payload)),
+              'last_activity' => time(),
+          ]);
+
+          // Encrypt exactly as EncryptCookies middleware does
+          echo $app->make('encrypter')->encrypt($sessionId, false);
+          PHPEOF
+
+      # ──────────────────────────────────────────────────────────────
+      # 10b. Smoke tests
       # ──────────────────────────────────────────────────────────────
       - name: Run smoke tests
         run: |
@@ -141,21 +198,15 @@ jobs:
           PASS=0
           FAIL=0
 
-          # Helper: assert HTTP status code
           check_status() {
-            local label="$1"
-            local expected="$2"
-            local actual="$3"
+            local label="$1" expected="$2" actual="$3"
             if [ "$actual" -eq "$expected" ]; then
-              echo "  PASS  [${actual}] ${label}"
-              PASS=$((PASS + 1))
+              echo "  PASS  [${actual}] ${label}"; PASS=$((PASS + 1))
             else
-              echo "  FAIL  [${actual} != ${expected}] ${label}"
-              FAIL=$((FAIL + 1))
+              echo "  FAIL  [${actual} != ${expected}] ${label}"; FAIL=$((FAIL + 1))
             fi
           }
 
-          # Helper: GET request
           get_status() {
             curl -s -o /dev/null -w "%{http_code}" \
               -L --max-redirs 5 \
@@ -163,30 +214,28 @@ jobs:
               "$1"
           }
 
-          # Helper: GET without following redirects
-          get_status_no_follow() {
+          get_no_follow() {
             curl -s -o /dev/null -w "%{http_code}" \
               -c /tmp/smoke-cookies.txt -b /tmp/smoke-cookies.txt \
               "$1"
           }
 
+          # ── Public routes ──────────────────────────────────────────
           echo "=== Public Routes ==="
+          check_status "GET /"                                  200 "$(get_status ${BASE}/)"
+          check_status "GET /about"                             200 "$(get_status ${BASE}/about)"
+          check_status "GET /services"                          200 "$(get_status ${BASE}/services)"
+          check_status "GET /services/equipment-rental"         200 "$(get_status ${BASE}/services/equipment-rental)"
+          check_status "GET /blog"                              200 "$(get_status ${BASE}/blog)"
+          check_status "GET /blog/kanggui-rcm-expands-fleet"   200 "$(get_status ${BASE}/blog/kanggui-rcm-expands-fleet)"
+          check_status "GET /careers"                           200 "$(get_status ${BASE}/careers)"
+          check_status "GET /careers/heavy-equipment-mechanic"  200 "$(get_status ${BASE}/careers/heavy-equipment-mechanic)"
+          check_status "GET /contact"                           200 "$(get_status ${BASE}/contact)"
 
-          check_status "GET /" 200 "$(get_status ${BASE}/)"
-          check_status "GET /about" 200 "$(get_status ${BASE}/about)"
-          check_status "GET /services" 200 "$(get_status ${BASE}/services)"
-          check_status "GET /services/equipment-rental" 200 "$(get_status ${BASE}/services/equipment-rental)"
-          check_status "GET /blog" 200 "$(get_status ${BASE}/blog)"
-          check_status "GET /blog/kanggui-rcm-expands-fleet" 200 "$(get_status ${BASE}/blog/kanggui-rcm-expands-fleet)"
-          check_status "GET /careers" 200 "$(get_status ${BASE}/careers)"
-          check_status "GET /careers/heavy-equipment-mechanic" 200 "$(get_status ${BASE}/careers/heavy-equipment-mechanic)"
-          check_status "GET /contact" 200 "$(get_status ${BASE}/contact)"
-
+          # ── Public forms ───────────────────────────────────────────
           echo ""
           echo "=== Public Forms ==="
 
-          # ── POST /contact ───────────────────────────────────────────
-          # Fetch CSRF token from contact page
           CSRF_TOKEN=$(curl -s -c /tmp/smoke-cookies.txt "${BASE}/contact" \
             | grep -oP '(?<=name="_token" value=")[^"]+' | head -1)
           CONTACT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -198,17 +247,12 @@ jobs:
             -d "phone=1234567890" \
             -d "subject=Smoke+Test+Inquiry" \
             -d "message=This+is+a+smoke+test+contact+message+from+CI.")
-          # Expect 302 redirect back (or 200 if it re-renders)
           if [ "$CONTACT_STATUS" -eq 302 ] || [ "$CONTACT_STATUS" -eq 200 ]; then
-            echo "  PASS  [${CONTACT_STATUS}] POST /contact"
-            PASS=$((PASS + 1))
+            echo "  PASS  [${CONTACT_STATUS}] POST /contact"; PASS=$((PASS + 1))
           else
-            echo "  FAIL  [${CONTACT_STATUS}] POST /contact"
-            FAIL=$((FAIL + 1))
+            echo "  FAIL  [${CONTACT_STATUS}] POST /contact"; FAIL=$((FAIL + 1))
           fi
 
-          # ── POST /careers/{slug}/apply ───────────────────────────────
-          # Create a dummy PDF file for the resume upload
           echo "%PDF-1.4 dummy" > /tmp/dummy-resume.pdf
           CAREER_CSRF=$(curl -s -c /tmp/smoke-cookies2.txt \
             "${BASE}/careers/heavy-equipment-mechanic" \
@@ -223,74 +267,61 @@ jobs:
             -F "message=I am interested in this position." \
             -F "resume=@/tmp/dummy-resume.pdf;type=application/pdf")
           if [ "$APPLY_STATUS" -eq 302 ] || [ "$APPLY_STATUS" -eq 200 ]; then
-            echo "  PASS  [${APPLY_STATUS}] POST /careers/heavy-equipment-mechanic/apply"
-            PASS=$((PASS + 1))
+            echo "  PASS  [${APPLY_STATUS}] POST /careers/heavy-equipment-mechanic/apply"; PASS=$((PASS + 1))
           else
-            echo "  FAIL  [${APPLY_STATUS}] POST /careers/heavy-equipment-mechanic/apply"
-            FAIL=$((FAIL + 1))
+            echo "  FAIL  [${APPLY_STATUS}] POST /careers/heavy-equipment-mechanic/apply"; FAIL=$((FAIL + 1))
           fi
 
+          # ── Admin panel ────────────────────────────────────────────
           echo ""
           echo "=== Admin Panel ==="
 
-          # ── GET /admin unauthenticated → redirect to /admin/login ──
-          ADMIN_UNAUTH=$(get_status_no_follow "${BASE}/admin")
+          ADMIN_UNAUTH=$(get_no_follow "${BASE}/admin")
           if [ "$ADMIN_UNAUTH" -eq 302 ] || [ "$ADMIN_UNAUTH" -eq 301 ]; then
-            echo "  PASS  [${ADMIN_UNAUTH}] GET /admin (unauthenticated → redirect)"
-            PASS=$((PASS + 1))
+            echo "  PASS  [${ADMIN_UNAUTH}] GET /admin unauthenticated (expected redirect)"; PASS=$((PASS + 1))
           else
-            echo "  FAIL  [${ADMIN_UNAUTH} != 30x] GET /admin unauthenticated"
-            FAIL=$((FAIL + 1))
+            echo "  FAIL  [${ADMIN_UNAUTH}] GET /admin unauthenticated (expected 30x)"; FAIL=$((FAIL + 1))
           fi
 
-          # ── GET /admin/login ────────────────────────────────────────
-          LOGIN_STATUS=$(curl -s -o /tmp/login-page.html -w "%{http_code}" \
-            -c /tmp/admin-cookies.txt \
-            "${BASE}/admin/login")
-          check_status "GET /admin/login" 200 "$LOGIN_STATUS"
+          check_status "GET /admin/login" 200 \
+            "$(curl -s -o /dev/null -w "%{http_code}" "${BASE}/admin/login")"
 
-          # ── POST /admin/login ───────────────────────────────────────
-          ADMIN_CSRF=$(grep -oP '(?<=name="_token" value=")[^"]+' /tmp/login-page.html | head -1)
-          LOGIN_POST=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST "${BASE}/admin/login" \
-            -c /tmp/admin-cookies.txt -b /tmp/admin-cookies.txt \
-            -d "_token=${ADMIN_CSRF}" \
-            -d "email=admin@kangganui-rcm.com" \
-            -d "password=password")
-          if [ "$LOGIN_POST" -eq 302 ] || [ "$LOGIN_POST" -eq 200 ]; then
-            echo "  PASS  [${LOGIN_POST}] POST /admin/login"
-            PASS=$((PASS + 1))
-          else
-            echo "  FAIL  [${LOGIN_POST}] POST /admin/login"
+          # Create an authenticated session via the PHP helper.
+          # The script writes directly to the SQLite sessions table and
+          # returns the EncryptCookies-compatible encrypted cookie value.
+          ADMIN_COOKIE=$(php /tmp/create_admin_session.php 2>/tmp/admin-session.log)
+          if [ $? -ne 0 ] || [ -z "$ADMIN_COOKIE" ]; then
+            echo "  FAIL  Could not create admin session"
+            cat /tmp/admin-session.log
             FAIL=$((FAIL + 1))
+          else
+            echo "  INFO  Authenticated admin session ready"
           fi
 
-          # ── Authenticated admin pages ───────────────────────────────
-          ADMIN_PAGES=(
-            "/admin"
-            "/admin/services"
-            "/admin/posts"
-            "/admin/job-listings"
-            "/admin/job-applications"
-            "/admin/contacts"
-            "/admin/leads"
-            "/admin/categories"
-            "/admin/newsletters"
-            "/admin/menus"
-            "/admin/menu-items"
-            "/admin/blocks"
-            "/admin/page-blocks"
-            "/admin/themes"
-          )
-
-          for page in "${ADMIN_PAGES[@]}"; do
+          for page in \
+            /admin \
+            /admin/services \
+            /admin/posts \
+            /admin/job-listings \
+            /admin/job-applications \
+            /admin/contacts \
+            /admin/leads \
+            /admin/categories \
+            /admin/newsletters \
+            /admin/menus \
+            /admin/menu-items \
+            /admin/blocks \
+            /admin/page-blocks \
+            /admin/themes
+          do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
               -L --max-redirs 5 \
-              -c /tmp/admin-cookies.txt -b /tmp/admin-cookies.txt \
+              -H "Cookie: laravel_session=${ADMIN_COOKIE}" \
               "${BASE}${page}")
             check_status "GET ${page} (authenticated)" 200 "$STATUS"
           done
 
+          # ── Summary ────────────────────────────────────────────────
           echo ""
           echo "════════════════════════════════"
           echo "Results: ${PASS} passed, ${FAIL} failed"
@@ -298,11 +329,11 @@ jobs:
 
           if [ "$FAIL" -gt 0 ]; then
             echo ""
-            echo "Some smoke tests failed. Check server log below:"
-            echo "--- Laravel serve log ---"
-            cat /tmp/laravel-serve.log || true
-            echo "--- Laravel application log ---"
-            cat storage/logs/laravel.log | tail -100 || true
+            echo "Some tests FAILED – dumping logs:"
+            echo "--- serve log (last 50 lines) ---"
+            tail -50 /tmp/laravel-serve.log || true
+            echo "--- laravel.log (last 100 lines) ---"
+            tail -100 storage/logs/laravel.log || true
             exit 1
           fi
 
