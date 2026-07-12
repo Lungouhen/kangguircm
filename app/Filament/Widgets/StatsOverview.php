@@ -24,7 +24,7 @@ class StatsOverview extends BaseWidget
                 ->descriptionIcon('heroicon-m-document-text')
                 ->color('info'),
             
-            Stat::make('Job Openings', JobListing::where('status', 'active')->count())
+            Stat::make('Job Openings', JobListing::where('is_active', true)->count())
                 ->description('Current openings')
                 ->descriptionIcon('heroicon-m-user-plus')
                 ->color('warning'),

@@ -1,0 +1,351 @@
+name: Smoke Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run every hour so tests are continuous
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    name: Serve & Smoke Test
+    runs-on: ubuntu-latest
+
+    env:
+      APP_ENV: local
+      APP_DEBUG: true
+      APP_URL: http://127.0.0.1:8000
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ${{ github.workspace }}/database/database.sqlite
+      MAIL_MAILER: log
+      SESSION_DRIVER: database
+      CACHE_STORE: database
+      QUEUE_CONNECTION: sync
+      BCRYPT_ROUNDS: 4
+
+    steps:
+      # ──────────────────────────────────────────────────────────────
+      # 1. Checkout
+      # ──────────────────────────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ──────────────────────────────────────────────────────────────
+      # 2. PHP 8.2 + required extensions
+      # ──────────────────────────────────────────────────────────────
+      - name: Set up PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: >-
+            pdo, pdo_sqlite, sqlite3, mbstring, exif, bcmath,
+            fileinfo, gd, zip, xml, curl, intl, tokenizer, ctype,
+            json, openssl
+          coverage: none
+
+      # ──────────────────────────────────────────────────────────────
+      # 3. Node.js
+      # ──────────────────────────────────────────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # ──────────────────────────────────────────────────────────────
+      # 4. PHP dependencies
+      # ──────────────────────────────────────────────────────────────
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      # ──────────────────────────────────────────────────────────────
+      # 5. Node / front-end assets
+      # ──────────────────────────────────────────────────────────────
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build front-end assets
+        run: npm run build
+
+      # ──────────────────────────────────────────────────────────────
+      # 6. Environment configuration
+      # ──────────────────────────────────────────────────────────────
+      - name: Copy .env.example to .env
+        run: cp .env.example .env
+
+      - name: Generate application key
+        run: php artisan key:generate
+
+      - name: Override CI-specific env vars
+        run: |
+          php artisan config:clear
+          echo "DB_DATABASE=${{ github.workspace }}/database/database.sqlite" >> .env
+          echo "QUEUE_CONNECTION=sync" >> .env
+          echo "BCRYPT_ROUNDS=4" >> .env
+          echo "SESSION_DRIVER=database" >> .env
+          echo "CACHE_STORE=database" >> .env
+
+      # ──────────────────────────────────────────────────────────────
+      # 7. SQLite database + storage permissions
+      # ──────────────────────────────────────────────────────────────
+      - name: Create SQLite database file
+        run: touch ${{ github.workspace }}/database/database.sqlite
+
+      - name: Fix storage & bootstrap/cache permissions
+        run: |
+          chmod -R 775 storage bootstrap/cache
+          php artisan storage:link --quiet || true
+
+      # ──────────────────────────────────────────────────────────────
+      # 8. Migrate & seed (creates admin user + demo content)
+      # ──────────────────────────────────────────────────────────────
+      - name: Run migrations and seed database
+        run: php artisan migrate --force --seed
+
+      # ──────────────────────────────────────────────────────────────
+      # 9. Start Laravel dev server in background
+      # ──────────────────────────────────────────────────────────────
+      - name: Start Laravel server
+        run: |
+          php artisan serve --host=127.0.0.1 --port=8000 \
+            > /tmp/laravel-serve.log 2>&1 &
+          # Wait until the server responds (up to 30 s)
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8000 > /dev/null 2>&1; then
+              echo "Server is up after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8000 > /dev/null || \
+            { echo "ERROR: Server did not start"; cat /tmp/laravel-serve.log; exit 1; }
+
+      # ──────────────────────────────────────────────────────────────
+      # 10a. Write PHP helper that creates an authenticated admin
+      #      session directly in the SQLite DB.
+      #
+      #      Filament 3 uses Livewire for its login form, so a plain
+      #      curl form-POST to /admin/login cannot authenticate.
+      #      The helper writes a sessions row with the admin user's
+      #      auth identity and returns the AES-256-CBC encrypted
+      #      cookie value (same format as EncryptCookies middleware),
+      #      which curl can then send as the laravel_session cookie.
+      # ──────────────────────────────────────────────────────────────
+      - name: Write admin-session PHP helper
+        run: |
+          cat > /tmp/create_admin_session.php << 'PHPEOF'
+          <?php
+          define('LARAVEL_START', microtime(true));
+          chdir(getenv('GITHUB_WORKSPACE'));
+          require 'vendor/autoload.php';
+
+          $app = require_once 'bootstrap/app.php';
+          $app->bootstrapWith([
+              Illuminate\Foundation\Bootstrap\LoadEnvironmentVariables::class,
+              Illuminate\Foundation\Bootstrap\LoadConfiguration::class,
+              Illuminate\Foundation\Bootstrap\RegisterFacades::class,
+              Illuminate\Foundation\Bootstrap\RegisterProviders::class,
+              Illuminate\Foundation\Bootstrap\BootProviders::class,
+          ]);
+
+          $user = App\Models\User::where('email', 'admin@kangganui-rcm.com')->first();
+          if (!$user) {
+              fwrite(STDERR, "Admin user not found\n");
+              exit(1);
+          }
+
+          // Build session payload matching Laravel SessionGuard's format
+          $guardKey  = 'login_web_' . sha1(Illuminate\Auth\SessionGuard::class);
+          $sessionId = Illuminate\Support\Str::random(40);
+          $payload   = [
+              '_token'    => Illuminate\Support\Str::random(40),
+              $guardKey   => $user->getAuthIdentifier(),
+              '_previous' => ['url' => 'http://127.0.0.1:8000/admin'],
+              '_flash'    => ['old' => [], 'new' => []],
+          ];
+
+          // Write the row into the sessions table (DATABASE driver)
+          Illuminate\Support\Facades\DB::table('sessions')->insert([
+              'id'            => $sessionId,
+              'user_id'       => $user->id,
+              'ip_address'    => '127.0.0.1',
+              'user_agent'    => 'SmokeTest/1.0',
+              'payload'       => base64_encode(serialize($payload)),
+              'last_activity' => time(),
+          ]);
+
+          // Encrypt exactly as EncryptCookies middleware does
+          echo $app->make('encrypter')->encrypt($sessionId, false);
+          PHPEOF
+
+      # ──────────────────────────────────────────────────────────────
+      # 10b. Smoke tests
+      # ──────────────────────────────────────────────────────────────
+      - name: Run smoke tests
+        run: |
+          BASE="http://127.0.0.1:8000"
+          PASS=0
+          FAIL=0
+
+          check_status() {
+            local label="$1" expected="$2" actual="$3"
+            if [ "$actual" -eq "$expected" ]; then
+              echo "  PASS  [${actual}] ${label}"; PASS=$((PASS + 1))
+            else
+              echo "  FAIL  [${actual} != ${expected}] ${label}"; FAIL=$((FAIL + 1))
+            fi
+          }
+
+          get_status() {
+            curl -s -o /dev/null -w "%{http_code}" \
+              -L --max-redirs 5 \
+              -c /tmp/smoke-cookies.txt -b /tmp/smoke-cookies.txt \
+              "$1"
+          }
+
+          get_no_follow() {
+            curl -s -o /dev/null -w "%{http_code}" \
+              -c /tmp/smoke-cookies.txt -b /tmp/smoke-cookies.txt \
+              "$1"
+          }
+
+          # ── Public routes ──────────────────────────────────────────
+          echo "=== Public Routes ==="
+          check_status "GET /"                                  200 "$(get_status ${BASE}/)"
+          check_status "GET /about"                             200 "$(get_status ${BASE}/about)"
+          check_status "GET /services"                          200 "$(get_status ${BASE}/services)"
+          check_status "GET /services/equipment-rental"         200 "$(get_status ${BASE}/services/equipment-rental)"
+          check_status "GET /blog"                              200 "$(get_status ${BASE}/blog)"
+          check_status "GET /blog/kanggui-rcm-expands-fleet"   200 "$(get_status ${BASE}/blog/kanggui-rcm-expands-fleet)"
+          check_status "GET /careers"                           200 "$(get_status ${BASE}/careers)"
+          check_status "GET /careers/heavy-equipment-mechanic"  200 "$(get_status ${BASE}/careers/heavy-equipment-mechanic)"
+          check_status "GET /contact"                           200 "$(get_status ${BASE}/contact)"
+
+          # ── Public forms ───────────────────────────────────────────
+          echo ""
+          echo "=== Public Forms ==="
+
+          CSRF_TOKEN=$(curl -s -c /tmp/smoke-cookies.txt "${BASE}/contact" \
+            | grep -oP '(?<=name="_token" value=")[^"]+' | head -1)
+          CONTACT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${BASE}/contact" \
+            -c /tmp/smoke-cookies.txt -b /tmp/smoke-cookies.txt \
+            -d "_token=${CSRF_TOKEN}" \
+            -d "name=Test+User" \
+            -d "email=test@example.com" \
+            -d "phone=1234567890" \
+            -d "subject=Smoke+Test+Inquiry" \
+            -d "message=This+is+a+smoke+test+contact+message+from+CI.")
+          if [ "$CONTACT_STATUS" -eq 302 ] || [ "$CONTACT_STATUS" -eq 200 ]; then
+            echo "  PASS  [${CONTACT_STATUS}] POST /contact"; PASS=$((PASS + 1))
+          else
+            echo "  FAIL  [${CONTACT_STATUS}] POST /contact"; FAIL=$((FAIL + 1))
+          fi
+
+          echo "%PDF-1.4 dummy" > /tmp/dummy-resume.pdf
+          CAREER_CSRF=$(curl -s -c /tmp/smoke-cookies2.txt \
+            "${BASE}/careers/heavy-equipment-mechanic" \
+            | grep -oP '(?<=name="_token" value=")[^"]+' | head -1)
+          APPLY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${BASE}/careers/heavy-equipment-mechanic/apply" \
+            -c /tmp/smoke-cookies2.txt -b /tmp/smoke-cookies2.txt \
+            -F "_token=${CAREER_CSRF}" \
+            -F "name=Test Applicant" \
+            -F "email=applicant@example.com" \
+            -F "phone=9876543210" \
+            -F "message=I am interested in this position." \
+            -F "resume=@/tmp/dummy-resume.pdf;type=application/pdf")
+          if [ "$APPLY_STATUS" -eq 302 ] || [ "$APPLY_STATUS" -eq 200 ]; then
+            echo "  PASS  [${APPLY_STATUS}] POST /careers/heavy-equipment-mechanic/apply"; PASS=$((PASS + 1))
+          else
+            echo "  FAIL  [${APPLY_STATUS}] POST /careers/heavy-equipment-mechanic/apply"; FAIL=$((FAIL + 1))
+          fi
+
+          # ── Admin panel ────────────────────────────────────────────
+          echo ""
+          echo "=== Admin Panel ==="
+
+          ADMIN_UNAUTH=$(get_no_follow "${BASE}/admin")
+          if [ "$ADMIN_UNAUTH" -eq 302 ] || [ "$ADMIN_UNAUTH" -eq 301 ]; then
+            echo "  PASS  [${ADMIN_UNAUTH}] GET /admin unauthenticated (expected redirect)"; PASS=$((PASS + 1))
+          else
+            echo "  FAIL  [${ADMIN_UNAUTH}] GET /admin unauthenticated (expected 30x)"; FAIL=$((FAIL + 1))
+          fi
+
+          check_status "GET /admin/login" 200 \
+            "$(curl -s -o /dev/null -w "%{http_code}" "${BASE}/admin/login")"
+
+          # Create an authenticated session via the PHP helper.
+          # The script writes directly to the SQLite sessions table and
+          # returns the EncryptCookies-compatible encrypted cookie value.
+          ADMIN_COOKIE=$(php /tmp/create_admin_session.php 2>/tmp/admin-session.log)
+          if [ $? -ne 0 ] || [ -z "$ADMIN_COOKIE" ]; then
+            echo "  FAIL  Could not create admin session"
+            cat /tmp/admin-session.log
+            FAIL=$((FAIL + 1))
+          else
+            echo "  INFO  Authenticated admin session ready"
+          fi
+
+          for page in \
+            /admin \
+            /admin/services \
+            /admin/posts \
+            /admin/job-listings \
+            /admin/job-applications \
+            /admin/contacts \
+            /admin/leads \
+            /admin/categories \
+            /admin/newsletters \
+            /admin/menus \
+            /admin/menu-items \
+            /admin/blocks \
+            /admin/page-blocks \
+            /admin/themes
+          do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -L --max-redirs 5 \
+              -H "Cookie: laravel_session=${ADMIN_COOKIE}" \
+              "${BASE}${page}")
+            check_status "GET ${page} (authenticated)" 200 "$STATUS"
+          done
+
+          # ── Summary ────────────────────────────────────────────────
+          echo ""
+          echo "════════════════════════════════"
+          echo "Results: ${PASS} passed, ${FAIL} failed"
+          echo "════════════════════════════════"
+
+          if [ "$FAIL" -gt 0 ]; then
+            echo ""
+            echo "Some tests FAILED – dumping logs:"
+            echo "--- serve log (last 50 lines) ---"
+            tail -50 /tmp/laravel-serve.log || true
+            echo "--- laravel.log (last 100 lines) ---"
+            tail -100 storage/logs/laravel.log || true
+            exit 1
+          fi
+
+      # ──────────────────────────────────────────────────────────────
+      # 11. Upload logs as artifact if anything failed
+      # ──────────────────────────────────────────────────────────────
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-logs
+          path: |
+            storage/logs/laravel.log
+            /tmp/laravel-serve.log
+          retention-days: 7

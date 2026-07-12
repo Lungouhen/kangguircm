@@ -63,7 +63,7 @@ class ContactResource extends Resource
                 Forms\Components\Textarea::make('notes')
                     ->columnSpanFull(),
                 Forms\Components\Select::make('assigned_to')
-                    ->relationship('assignee', 'name')
+                    ->relationship('assignedUser', 'name')
                     ->searchable()
                     ->preload(),
             ]);

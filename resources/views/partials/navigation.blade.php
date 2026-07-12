@@ -28,7 +28,7 @@
                         <div class="relative" x-data="{ dropdownOpen: false }" 
                              @mouseenter="dropdownOpen = true" 
                              @mouseleave="dropdownOpen = false">
-                            <button class="flex items-center space-x-1 px-4 py-2 text-gray-700 hover:text-[var(--color-primary)] transition font-medium {{ request()->routeIs($item->route_name) ? 'text-[var(--color-primary)]' : '' }}">
+                            <button class="flex items-center space-x-1 px-4 py-2 text-gray-700 hover:text-[var(--color-primary)] transition font-medium {{ request()->routeIs($item->route) ? 'text-[var(--color-primary)]' : '' }}">
                                 <span>{{ $item->title }}</span>
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -52,7 +52,7 @@
                         </div>
                     @else
                         <a href="{{ $item->url }}" 
-                           class="px-4 py-2 text-gray-700 hover:text-[var(--color-primary)] transition font-medium {{ request()->routeIs($item->route_name) || request()->fullUrlIs($item->url) ? 'text-[var(--color-primary)]' : '' }}">
+                           class="px-4 py-2 text-gray-700 hover:text-[var(--color-primary)] transition font-medium {{ request()->routeIs($item->route) || request()->fullUrlIs($item->url) ? 'text-[var(--color-primary)]' : '' }}">
                             {{ $item->title }}
                         </a>
                     @endif
@@ -100,7 +100,7 @@
         <div class="px-4 py-3 space-y-2">
             @forelse($menuItems as $item)
                 <a href="{{ $item->url }}" 
-                   class="block px-4 py-2.5 text-gray-700 hover:bg-gray-50 hover:text-[var(--color-primary)] rounded-lg transition {{ request()->routeIs($item->route_name) || request()->fullUrlIs($item->url) ? 'bg-gray-50 text-[var(--color-primary)] font-semibold' : '' }}">
+                   class="block px-4 py-2.5 text-gray-700 hover:bg-gray-50 hover:text-[var(--color-primary)] rounded-lg transition {{ request()->routeIs($item->route) || request()->fullUrlIs($item->url) ? 'bg-gray-50 text-[var(--color-primary)] font-semibold' : '' }}">
                     {{ $item->title }}
                 </a>
             @empty
