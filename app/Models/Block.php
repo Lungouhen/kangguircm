@@ -45,9 +45,4 @@ class Block extends Model
             ->select('blocks.*')
             ->get();
     }
-
-    public function getContentAttribute($value)
-    {
-        return json_decode($value, true) ?? [];
-    }
 }

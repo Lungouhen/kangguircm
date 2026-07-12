@@ -70,8 +70,8 @@ class MenuResource extends Resource
                     ]),
                 Tables\Columns\IconColumn::make('is_active')
                     ->boolean(),
-                Tables\Columns\TextColumn::make('menuItems_count')
-                    ->counts('menuItems')
+                Tables\Columns\TextColumn::make('items_count')
+                    ->counts('items')
                     ->label('Items'),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()

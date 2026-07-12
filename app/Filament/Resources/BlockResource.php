@@ -26,10 +26,15 @@ class BlockResource extends Resource
             ->schema([
                 Forms\Components\Section::make('Block Details')
                     ->schema([
-                        Forms\Components\TextInput::make('title')
+                        Forms\Components\TextInput::make('name')
                             ->required()
                             ->maxLength(255)
-                            ->live(onBlur: true),
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn (Forms\Set $set, ?string $state) => $set('slug', \Illuminate\Support\Str::slug($state ?? ''))),
+                        Forms\Components\TextInput::make('slug')
+                            ->required()
+                            ->maxLength(255)
+                            ->unique(ignoreRecord: true),
                         Forms\Components\Select::make('type')
                             ->options([
                                 'hero' => 'Hero Section',
@@ -53,25 +58,23 @@ class BlockResource extends Resource
                                 'full-width' => 'Full Width',
                             ])
                             ->default('standard')
-                            ->native(false)
-                            ->columnSpanFull(),
+                            ->native(false),
                         Forms\Components\Toggle::make('is_active')
                             ->default(true),
-                        Forms\Components\TextInput::make('order')
-                            ->numeric()
-                            ->default(0),
                     ])->columns(2),
 
                 Forms\Components\Section::make('Content')
                     ->schema([
-                        Forms\Components\RichEditor::make('content')
-                            ->columnSpanFull()
-                            ->label('Main Content (HTML/Text)'),
-                        Forms\Components\Textarea::make('json_data')
+                        Forms\Components\Textarea::make('content')
                             ->rows(8)
                             ->columnSpanFull()
-                            ->label('JSON Data (for structured content)')
-                            ->helperText('Use JSON format for complex data like testimonials, team members, etc.'),
+                            ->label('Content (JSON)')
+                            ->helperText('Use JSON format for structured content like testimonials, team members, etc.'),
+                        Forms\Components\Textarea::make('styles')
+                            ->rows(4)
+                            ->columnSpanFull()
+                            ->label('Styles (JSON)')
+                            ->helperText('Optional styling overrides in JSON format.'),
                     ]),
             ]);
     }
@@ -80,7 +83,7 @@ class BlockResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('title')
+                Tables\Columns\TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\BadgeColumn::make('type')
@@ -93,8 +96,6 @@ class BlockResource extends Resource
                     ]),
                 Tables\Columns\IconColumn::make('is_active')
                     ->boolean(),
-                Tables\Columns\TextColumn::make('order')
-                    ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

@@ -40,7 +40,7 @@ class MenuItemResource extends Resource
                         Forms\Components\TextInput::make('url')
                             ->label('URL (leave empty for route)')
                             ->maxLength(255),
-                        Forms\Components\Select::make('route_name')
+                        Forms\Components\Select::make('route')
                             ->label('Route Name (if no URL)')
                             ->options([
                                 'home' => 'Home',
@@ -51,7 +51,7 @@ class MenuItemResource extends Resource
                                 'careers' => 'Careers',
                             ])
                             ->native(false),
-                        Forms\Components\TextInput::make('route_params')
+                        Forms\Components\TextInput::make('route_parameters')
                             ->label('Route Parameters (JSON)')
                             ->placeholder('{"id": 1}'),
                         Forms\Components\Select::make('parent_id')
@@ -68,8 +68,14 @@ class MenuItemResource extends Resource
                             ->helperText('Add headings, links, and descriptions for mega menu panel'),
                         Forms\Components\TextInput::make('icon')
                             ->label('Icon Class (e.g., heroicon-o-home)'),
-                        Forms\Components\Toggle::make('open_in_new_tab')
-                            ->label('Open in new tab'),
+                        Forms\Components\Select::make('target')
+                            ->label('Link Target')
+                            ->options([
+                                '_self' => 'Same Window',
+                                '_blank' => 'New Tab',
+                            ])
+                            ->default('_self')
+                            ->native(false),
                         Forms\Components\Toggle::make('is_active')
                             ->default(true),
                         Forms\Components\TextInput::make('order')

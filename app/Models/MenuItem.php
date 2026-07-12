@@ -52,8 +52,10 @@ class MenuItem extends Model
 
     public function getUrlAttribute(): string
     {
-        if ($this->url) {
-            return $this->url;
+        $rawUrl = $this->attributes['url'] ?? null;
+
+        if ($rawUrl) {
+            return $rawUrl;
         }
 
         if ($this->route) {

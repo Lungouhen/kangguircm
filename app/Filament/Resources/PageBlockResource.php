@@ -29,7 +29,7 @@ class PageBlockResource extends Resource
             ->schema([
                 Forms\Components\Section::make('Page Block Assignment')
                     ->schema([
-                        Forms\Components\Select::make('page_slug')
+                        Forms\Components\Select::make('page_type')
                             ->options([
                                 'home' => 'Home Page',
                                 'about' => 'About Page',
@@ -40,8 +40,11 @@ class PageBlockResource extends Resource
                             ])
                             ->required()
                             ->native(false),
+                        Forms\Components\TextInput::make('page_identifier')
+                            ->label('Page Identifier (optional)')
+                            ->helperText('e.g. a service slug for a specific service page'),
                         Forms\Components\Select::make('block_id')
-                            ->relationship('block', 'title')
+                            ->relationship('block', 'name')
                             ->required()
                             ->label('Block')
                             ->native(false),
@@ -59,11 +62,14 @@ class PageBlockResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('page_slug')
+                Tables\Columns\TextColumn::make('page_type')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => ucfirst(str_replace('-', ' ', $state)))
                     ->sortable(),
-                Tables\Columns\TextColumn::make('block.title')
+                Tables\Columns\TextColumn::make('page_identifier')
+                    ->label('Identifier')
+                    ->placeholder('—'),
+                Tables\Columns\TextColumn::make('block.name')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('block.type')
@@ -78,7 +84,7 @@ class PageBlockResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('page_slug')
+                Tables\Filters\SelectFilter::make('page_type')
                     ->options([
                         'home' => 'Home',
                         'about' => 'About',

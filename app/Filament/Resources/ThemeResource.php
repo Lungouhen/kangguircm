@@ -42,21 +42,21 @@ class ThemeResource extends Resource
                 Forms\Components\Section::make('Colors')
                     ->description('Define your brand colors')
                     ->schema([
-                        Forms\Components\ColorPicker::make('primary_color')
+                        Forms\Components\ColorPicker::make('colors.primary')
                             ->label('Primary Color'),
-                        Forms\Components\ColorPicker::make('secondary_color')
+                        Forms\Components\ColorPicker::make('colors.secondary')
                             ->label('Secondary Color'),
-                        Forms\Components\ColorPicker::make('accent_color')
+                        Forms\Components\ColorPicker::make('colors.accent')
                             ->label('Accent Color'),
-                        Forms\Components\ColorPicker::make('text_color')
+                        Forms\Components\ColorPicker::make('colors.text')
                             ->label('Text Color'),
-                        Forms\Components\ColorPicker::make('background_color')
+                        Forms\Components\ColorPicker::make('colors.background')
                             ->label('Background Color'),
                     ])->columns(3),
 
                 Forms\Components\Section::make('Typography')
                     ->schema([
-                        Forms\Components\Select::make('heading_font')
+                        Forms\Components\Select::make('typography.heading_font')
                             ->options([
                                 'Instrument Sans' => 'Instrument Sans',
                                 'Instrument Serif' => 'Instrument Serif',
@@ -64,23 +64,31 @@ class ThemeResource extends Resource
                                 'Poppins' => 'Poppins',
                                 'Roboto' => 'Roboto',
                             ])
-                            ->default('Instrument Sans'),
-                        Forms\Components\Select::make('body_font')
+                            ->default('Instrument Sans')
+                            ->label('Heading Font'),
+                        Forms\Components\Select::make('typography.font_family')
                             ->options([
                                 'Instrument Sans' => 'Instrument Sans',
                                 'Inter' => 'Inter',
                                 'Roboto' => 'Roboto',
                                 'Open Sans' => 'Open Sans',
                             ])
-                            ->default('Instrument Sans'),
+                            ->default('Instrument Sans')
+                            ->label('Body Font'),
                     ])->columns(2),
 
                 Forms\Components\Section::make('Layout & Assets')
                     ->schema([
-                        Forms\Components\FileUpload::make('logo')
+                        Forms\Components\FileUpload::make('logo_light')
                             ->image()
                             ->directory('logos')
-                            ->maxSize(1024),
+                            ->maxSize(1024)
+                            ->label('Logo (Light)'),
+                        Forms\Components\FileUpload::make('logo_dark')
+                            ->image()
+                            ->directory('logos')
+                            ->maxSize(1024)
+                            ->label('Logo (Dark)'),
                         Forms\Components\FileUpload::make('favicon')
                             ->image()
                             ->directory('favicons')
@@ -93,7 +101,7 @@ class ThemeResource extends Resource
                             ->rows(6)
                             ->columnSpanFull()
                             ->label('Custom JS (Footer)'),
-                    ])->columns(1),
+                    ])->columns(2),
             ]);
     }
 
@@ -107,9 +115,6 @@ class ThemeResource extends Resource
                 Tables\Columns\IconColumn::make('is_active')
                     ->boolean()
                     ->label('Active'),
-                Tables\Columns\TextColumn::make('primary_color')
-                    ->color(fn (string $state): string => $state)
-                    ->badge(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
